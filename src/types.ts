@@ -192,6 +192,13 @@ export interface OnCreateEventResponse {
 }
 
 export interface ActionsProviderProps {
+  /**
+   * Called after a page commits its events: the day starts (unix ms) it shows
+   * and the `events` prop they were packed from.
+   */
+  onEventsRendered?: (dayUnixes: number[], events: EventItem[]) => void;
+  /** Called when a page stops showing those days (unmounted or recycled). */
+  onEventsUnmounted?: (dayUnixes: number[]) => void;
   /** Callback when the date is changed (scrolling) */
   onChange?: (date: string) => void;
   /** Callback when the date is changed */
@@ -789,13 +796,15 @@ export interface CalendarBodyProps {
     borderColor: string;
   }) => React.ReactElement | null;
 
-  /** Custom event item
+  /** Custom event item. `staticSize` is the event's plain size (settled after pinch), for laying
+   * out without animated reads; `size` holds the matching shared values.
    *
    * Note: Please use `useCallback` to memoize the function
    */
   renderEvent?: (
     event: PackedEvent,
-    size: SizeAnimation
+    size: SizeAnimation,
+    staticSize: EventStaticSize
   ) => React.ReactElement | null;
 
   /** Custom draggable event item
@@ -882,4 +891,10 @@ export interface PackedAllDayEvent extends EventItemInternal {
 export interface SizeAnimation {
   width: SharedValue<number>;
   height: SharedValue<number>;
+}
+
+/** Plain size of a grid event (settled after pinch); lets consumers skip animated reads. */
+export interface EventStaticSize {
+  width: number;
+  height: number;
 }

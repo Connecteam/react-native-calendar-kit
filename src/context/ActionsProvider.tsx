@@ -37,6 +37,16 @@ const ActionsProvider: React.FC<PropsWithChildren<ActionsProviderProps>> = ({
   );
   const onDragCreateEventEnd = useLatestCallback(props.onDragCreateEventEnd);
   const onLoad = useLatestCallback(props.onLoad);
+  // Left undefined when not passed: the latest-callback wrapper warns when
+  // called without one.
+  const latestOnEventsRendered = useLatestCallback(props.onEventsRendered);
+  const latestOnEventsUnmounted = useLatestCallback(props.onEventsUnmounted);
+  const onEventsRendered = props.onEventsRendered
+    ? latestOnEventsRendered
+    : undefined;
+  const onEventsUnmounted = props.onEventsUnmounted
+    ? latestOnEventsUnmounted
+    : undefined;
 
   const value = useMemo(
     () => ({
@@ -55,6 +65,8 @@ const ActionsProvider: React.FC<PropsWithChildren<ActionsProviderProps>> = ({
       onDragCreateEventStart,
       onDragCreateEventEnd,
       onLoad,
+      onEventsRendered,
+      onEventsUnmounted,
     }),
     [
       onChange,
@@ -72,6 +84,8 @@ const ActionsProvider: React.FC<PropsWithChildren<ActionsProviderProps>> = ({
       onDragCreateEventStart,
       onDragCreateEventEnd,
       onLoad,
+      onEventsRendered,
+      onEventsUnmounted,
     ]
   );
 

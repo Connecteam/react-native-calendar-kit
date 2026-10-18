@@ -1,24 +1,47 @@
 import isEqual from 'lodash.isequal';
 import type { FC } from 'react';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
   Pressable,
   type GestureResponderEvent,
 } from 'react-native';
-import { useDerivedValue } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 import { MILLISECONDS_IN_DAY } from '../constants';
 import { useBody } from '../context/BodyContext';
 import { useTheme } from '../context/ThemeProvider';
-import type { OnEventResponse, PackedEvent, SizeAnimation } from '../types';
-import { parseDateTime } from '../utils/dateUtils';
+import type {
+  EventStaticSize,
+  OnEventResponse,
+  PackedEvent,
+  SizeAnimation,
+} from '../types';
 import Text from './Text';
+
+// Native Date instead of luxon for the per-event day walk: luxon's `plus`/`startOf` dominated the JS
+// profile when mounting a page of events (unit normalisation is very slow on Hermes). calendar-kit
+// never changes luxon's default zone, so both operate in the device's local zone.
+function plusOneLocalDay(unix: number): number {
+  const date = new Date(unix);
+  date.setDate(date.getDate() + 1);
+  return date.getTime();
+}
+
+function localDayStart(unix: number): number {
+  const date = new Date(unix);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
 
 interface EventItemProps {
   event: PackedEvent;
   startUnix: number;
-  renderEvent?: (event: PackedEvent, size: SizeAnimation) => React.ReactNode;
+  renderEvent?: (
+    event: PackedEvent,
+    size: SizeAnimation,
+    staticSize: EventStaticSize
+  ) => React.ReactNode;
   onPressEvent?: (event: OnEventResponse) => void;
   onLongPressEvent?: (
     event: PackedEvent,
@@ -27,6 +50,8 @@ interface EventItemProps {
   isDragging?: boolean;
   visibleDates: Record<string, { diffDays: number; unix: number }>;
   totalResources?: number;
+  /** JS copy of the minute height, updated when a pinch settles (see Events). */
+  minuteHeight?: number;
 }
 
 const EventItem: FC<EventItemProps> = ({
@@ -38,6 +63,7 @@ const EventItem: FC<EventItemProps> = ({
   isDragging,
   visibleDates,
   totalResources,
+  minuteHeight: settledMinuteHeight,
 }) => {
   const theme = useTheme(
     useCallback((state) => {
@@ -89,9 +115,9 @@ const EventItem: FC<EventItemProps> = ({
       for (
         let dayUnix = eventStartUnix;
         dayUnix < startUnix;
-        dayUnix = parseDateTime(dayUnix).plus({ days: 1 }).toMillis()
+        dayUnix = plusOneLocalDay(dayUnix)
       ) {
-        const dayStartUnix = parseDateTime(dayUnix).startOf('day').toMillis();
+        const dayStartUnix = localDayStart(dayUnix);
         if (!visibleDates[dayStartUnix]) {
           diffDays++;
         }
@@ -100,9 +126,9 @@ const EventItem: FC<EventItemProps> = ({
       for (
         let dayUnix = startUnix;
         dayUnix < eventStartUnix;
-        dayUnix = parseDateTime(dayUnix).plus({ days: 1 }).toMillis()
+        dayUnix = plusOneLocalDay(dayUnix)
       ) {
-        const dayStartUnix = parseDateTime(dayUnix).startOf('day').toMillis();
+        const dayStartUnix = localDayStart(dayUnix);
         if (!visibleDates[dayStartUnix]) {
           diffDays--;
         }
@@ -129,11 +155,6 @@ const EventItem: FC<EventItemProps> = ({
     : totalResources && totalResources > 0
       ? totalResources
       : 1;
-
-  const eventHeight = useDerivedValue(
-    () => data.totalDuration * minuteHeight.value - 1,
-    [data.totalDuration]
-  );
 
   const widthPercent = useMemo(() => {
     if (total && columnSpan) {
@@ -200,7 +221,36 @@ const EventItem: FC<EventItemProps> = ({
 
   const opacity = isDragging ? 0.5 : 1;
 
-  const eventWidthAnim = useDerivedValue(() => eventWidth, [eventWidth]);
+  // Plain-number size so a card can lay out without reading animated values on mount; it follows
+  // the pinch once it settles.
+  const staticSize = useMemo<EventStaticSize>(() => {
+    const settledHeight = settledMinuteHeight ?? minuteHeight.value;
+    return {
+      width: eventWidth,
+      height: data.totalDuration * settledHeight - 1,
+    };
+  }, [settledMinuteHeight, minuteHeight, eventWidth, data.totalDuration]);
+
+  // Real shared values for renderEvent consumers that read size in a worklet. Plain mutables kept in
+  // sync with staticSize instead of derived values, so mounting a page registers no per-event
+  // mappers; they follow a pinch once it settles rather than every frame.
+  const widthAnim = useSharedValue(staticSize.width);
+  const heightAnim = useSharedValue(staticSize.height);
+  const syncedSize = useRef(staticSize);
+  useEffect(() => {
+    // Skips the mount (already initialised) so a page mount does not queue a UI write per event.
+    if (syncedSize.current === staticSize) {
+      return;
+    }
+    syncedSize.current = staticSize;
+    widthAnim.value = staticSize.width;
+    heightAnim.value = staticSize.height;
+  }, [staticSize, widthAnim, heightAnim]);
+
+  const size = useMemo<SizeAnimation>(
+    () => ({ width: widthAnim, height: heightAnim }),
+    [widthAnim, heightAnim]
+  );
 
   return (
     <View
@@ -230,10 +280,7 @@ const EventItem: FC<EventItemProps> = ({
             { opacity },
           ]}>
           {renderEvent ? (
-            renderEvent(eventInput, {
-              width: eventWidthAnim,
-              height: eventHeight,
-            })
+            renderEvent(eventInput, size, staticSize)
           ) : (
             <Text
               style={[
@@ -255,6 +302,7 @@ export default React.memo(EventItem, (prev, next) => {
     isEqual(prev.event, next.event) &&
     isEqual(prev.visibleDates, next.visibleDates) &&
     prev.startUnix === next.startUnix &&
+    prev.minuteHeight === next.minuteHeight &&
     prev.renderEvent === next.renderEvent &&
     prev.isDragging === next.isDragging &&
     prev.onPressEvent === next.onPressEvent &&

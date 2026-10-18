@@ -28,7 +28,6 @@ import {
   processAllDayEventMap,
   processEventOccurrences,
 } from '../utils/eventUtils';
-import { useDateChangedListener } from './VisibleDateProvider';
 
 interface EventsState {
   allDayEvents: Record<string, PackedAllDayEvent[]>;
@@ -37,6 +36,32 @@ interface EventsState {
   eventCountsByDay: Record<string, number>;
   eventCountsByWeek: Record<string, number>;
   resources?: ResourceItem[];
+  /** The `events` prop these packed events were built from. */
+  source: EventItem[];
+}
+
+/**
+ * Time span covered by `events`. Packing all of them (instead of a window
+ * around the visible date) keeps every page in sync with the prop and avoids
+ * re-packing on each page change. The admin calendar passes a bounded window;
+ * the employee calendar passes its whole schedule cache (small: only the
+ * user's own items), so there every events change repacks all of it.
+ */
+function getEventsBounds(events: EventItem[]) {
+  let minUnix = Infinity;
+  let maxUnix = -Infinity;
+  for (const event of events) {
+    const start = event.start.dateTime ?? event.start.date;
+    const end = event.end.dateTime ?? event.end.date;
+    if (!start || !end) {
+      continue;
+    }
+    const startUnix = parseDateTime(start, { zone: event.start.timeZone });
+    const endUnix = parseDateTime(end, { zone: event.end.timeZone });
+    minUnix = Math.min(minUnix, startUnix.startOf('day').toMillis());
+    maxUnix = Math.max(maxUnix, endUnix.endOf('day').toMillis());
+  }
+  return { minUnix, maxUnix };
 }
 
 const EventsContext = React.createContext<Store<EventsState> | undefined>(
@@ -66,14 +91,12 @@ const EventsProvider: ForwardRefRenderFunction<
   PropsWithChildren<EventsProviderProps>
 > = (
   {
-    pagesPerSide,
     events = [],
     children,
     timeZone,
     firstDay,
     useAllDayEvent: showAllDay,
     hideWeekDays,
-    defaultOffset = 7,
     minRegularEventMinutes = 1,
     overlapType = 'no-overlap',
     minStartDifference = DEFAULT_MIN_START_DIFFERENCE,
@@ -89,19 +112,13 @@ const EventsProvider: ForwardRefRenderFunction<
       eventCountsByDay: {},
       eventCountsByWeek: {},
       resources: undefined,
+      source: [],
     })
   ).current;
-  const currentStartDate = useDateChangedListener();
 
   const notifyDataChanged = useCallback(
-    (date: number, offset: number = defaultOffset) => {
-      const zonedDate = forceUpdateZone(date, timeZone);
-      const minUnix = zonedDate
-        .minus({ days: offset * pagesPerSide })
-        .toMillis();
-      const maxUnix = zonedDate
-        .plus({ days: offset * (pagesPerSide + 1) })
-        .toMillis();
+    () => {
+      const { minUnix, maxUnix } = getEventsBounds(events);
 
       const { regular: regularEvents, allDays: allDayEvents } = filterEvents(
         events,
@@ -175,12 +192,11 @@ const EventsProvider: ForwardRefRenderFunction<
         eventCountsByDay,
         eventCountsByWeek,
         resources,
+        source: events,
       });
     },
     [
-      defaultOffset,
       timeZone,
-      pagesPerSide,
       events,
       showAllDay,
       hideWeekDays,
@@ -212,8 +228,8 @@ const EventsProvider: ForwardRefRenderFunction<
   }));
 
   useEffect(() => {
-    notifyDataChanged(currentStartDate);
-  }, [events, notifyDataChanged, currentStartDate]);
+    notifyDataChanged();
+  }, [notifyDataChanged]);
 
   return (
     <EventsContext.Provider value={eventStore}>
@@ -313,7 +329,7 @@ export const useRegularEvents = (
         }
       }
 
-      return { data };
+      return { data, source: state.source };
     },
     [date, numberOfDays, visibleDays]
   );

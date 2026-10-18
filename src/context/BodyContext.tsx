@@ -2,6 +2,7 @@ import React from 'react';
 import type { AnimatedRef, SharedValue } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
 import type {
+  EventStaticSize,
   OutOfRangeProps,
   PackedEvent,
   RenderHourProps,
@@ -45,7 +46,11 @@ export interface BodyContextProps {
       height: SharedValue<number>;
     }
   ) => React.ReactNode;
-  renderEvent?: (event: PackedEvent, size: SizeAnimation) => React.ReactNode;
+  renderEvent?: (
+    event: PackedEvent,
+    size: SizeAnimation,
+    staticSize: EventStaticSize
+  ) => React.ReactNode;
   renderCustomHorizontalLine?: (props: {
     index: number;
     borderColor: string;

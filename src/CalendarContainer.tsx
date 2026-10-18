@@ -126,6 +126,8 @@ const CalendarContainer: React.ForwardRefRenderFunction<
     overlapEventsSpacing = 1,
     minRegularEventMinutes = 1,
     onLoad,
+    onEventsRendered,
+    onEventsUnmounted,
     overlapType,
     minStartDifference,
     onLongPressBackground,
@@ -881,6 +883,8 @@ const CalendarContainer: React.ForwardRefRenderFunction<
     onDragCreateEventEnd,
     onLoad: _onLoad,
     onLongPressBackground,
+    onEventsRendered,
+    onEventsUnmounted,
   };
 
   const loadingValue = useMemo(() => ({ isLoading }), [isLoading]);
