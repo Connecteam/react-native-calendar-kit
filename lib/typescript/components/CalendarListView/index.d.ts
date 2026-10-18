@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { type ComponentProps } from 'react';
+import type { ScrollView } from 'react-native-gesture-handler';
 import type Animated from 'react-native-reanimated';
 import type { AnimatedRef } from 'react-native-reanimated';
 import { CalendarListRef } from '../../service/CalendarList';
@@ -14,6 +15,7 @@ interface CalendarListViewProps {
     animatedRef?: AnimatedRef<Animated.ScrollView>;
     scrollEventThrottle?: number;
     scrollEnabled?: boolean;
+    simultaneousHandlers?: ComponentProps<typeof ScrollView>['simultaneousHandlers'];
     onScroll?: any;
     snapToInterval?: number;
     inverted?: boolean;

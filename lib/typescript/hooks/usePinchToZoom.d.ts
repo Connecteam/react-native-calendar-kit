@@ -3,5 +3,6 @@ import type { GestureType } from 'react-native-gesture-handler';
 declare const usePinchToZoom: () => {
     pinchGesture: import("react-native-gesture-handler/lib/typescript/handlers/gestures/pinchGesture").PinchGesture;
     pinchGestureRef: import("react").MutableRefObject<GestureType | undefined>;
+    isPinchGestureActive: boolean;
 };
 export default usePinchToZoom;

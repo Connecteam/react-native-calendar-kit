@@ -122,7 +122,12 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
     height: timelineHeight.value,
   }));
 
-  const { pinchGesture } = usePinchToZoom();
+  const { pinchGesture, pinchGestureRef, isPinchGestureActive } =
+    usePinchToZoom();
+  // Android: the scroll views run alongside the pinch, which a late second finger would otherwise
+  // lose to them, and stop scrolling while it's active (see usePinchToZoom).
+  const pinchSimultaneousHandlers =
+    Platform.OS === 'android' ? pinchGestureRef : undefined;
   const dragEventGesture = useDragEventGesture();
   const dragToCreateGesture = useDragToCreateGesture({
     mode: dragToCreateMode,
@@ -334,7 +339,9 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
             onRefresh ? (
               <RefreshControl refreshing={false} onRefresh={_onRefresh} />
             ) : undefined
-          }>
+          }
+          scrollEnabled={!isPinchGestureActive}
+          simultaneousHandlers={pinchSimultaneousHandlers}>
           <BodyContext.Provider value={value}>
             <Animated.View
               style={[
@@ -380,7 +387,10 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
                       ref={calendarListRef}
                       animatedRef={gridListRef}
                       count={calendarData.count}
-                      scrollEnabled={allowHorizontalSwipe}
+                      scrollEnabled={
+                        allowHorizontalSwipe && !isPinchGestureActive
+                      }
+                      simultaneousHandlers={pinchSimultaneousHandlers}
                       width={calendarGridWidth}
                       height={maxTimelineHeight + EXTRA_HEIGHT * 2}
                       renderItem={_renderTimeSlots}

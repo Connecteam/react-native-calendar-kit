@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
 } from 'react';
 import {
   GestureResponderEvent,
@@ -59,6 +60,9 @@ interface CalendarListProps {
   extraScrollData?: any;
   scrollEventThrottle?: number;
   scrollEnabled?: boolean;
+  simultaneousHandlers?: ComponentProps<
+    typeof ScrollView
+  >['simultaneousHandlers'];
   onLoad?: () => void;
   onTouchStart?: (event: GestureResponderEvent) => void;
 
@@ -128,6 +132,7 @@ export const CalendarList = React.forwardRef<
       extraScrollData,
       scrollEventThrottle = 16,
       scrollEnabled = true,
+      simultaneousHandlers,
       onLoad,
       onTouchStart,
       onScrollBeginDrag,
@@ -305,6 +310,7 @@ export const CalendarList = React.forwardRef<
         contentOffset={{ x: initialOffset ?? 0, y: 0 }}
         scrollEventThrottle={scrollEventThrottle}
         scrollEnabled={scrollEnabled}
+        simultaneousHandlers={simultaneousHandlers}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
         pagingEnabled={pagingEnabled}

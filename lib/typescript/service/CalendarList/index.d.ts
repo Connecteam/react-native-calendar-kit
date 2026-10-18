@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { type ComponentProps } from 'react';
 import { GestureResponderEvent, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Animated, { AnimatedRef } from 'react-native-reanimated';
 interface CalendarListProps {
     count: number;
@@ -31,6 +32,7 @@ interface CalendarListProps {
     extraScrollData?: any;
     scrollEventThrottle?: number;
     scrollEnabled?: boolean;
+    simultaneousHandlers?: ComponentProps<typeof ScrollView>['simultaneousHandlers'];
     onLoad?: () => void;
     onTouchStart?: (event: GestureResponderEvent) => void;
     /**
