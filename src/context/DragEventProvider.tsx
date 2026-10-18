@@ -7,7 +7,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { type GestureResponderEvent } from 'react-native';
+import {
+  type GestureResponderEvent,
+  unstable_batchedUpdates,
+} from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import {
   runOnJS,
@@ -73,6 +76,14 @@ export type DragEventContextProps = {
   isDraggingCreateAnim: SharedValue<boolean>;
   isDragging: boolean;
   dragX: SharedValue<number>;
+  /**
+   * Set when the drag is ending because the gesture was taken away rather than released —
+   * the touch was cancelled, or the app left the foreground with a finger down.
+   *
+   * Must be written before `isDraggingAnim` is cleared, since that is what starts the
+   * teardown that reads it. Cleared again by `resetDragState`.
+   */
+  isDragInterrupted: SharedValue<boolean>;
 };
 
 const DragEventContext = React.createContext<DragEventContextProps | undefined>(
@@ -94,6 +105,17 @@ export type DragEventActionsContextProps = {
     type: 'center' | 'top' | 'bottom';
     resourceIndex?: number;
     resourceId?: string;
+  }) => void;
+  /**
+   * Worklet. Opens a drag on the selected event from the UI thread.
+   *
+   * Must be called before the first touch move of the gesture, so the body's pan gesture
+   * sees `isDraggingAnim` and the `drag*` values it derives `initialDragState` from without
+   * waiting on the JS thread.
+   */
+  claimDragSelectedEvent: (initialDrag: {
+    startIndex: number;
+    type: 'center' | 'top' | 'bottom';
   }) => void;
   triggerDragCreateEvent?: (
     props: DateOrDateTime,
@@ -204,6 +226,7 @@ const DragEventProvider: FC<
   const dragSelectedDuration = useSharedValue<number>(-1);
   const isDraggingSelectedEvent = useSharedValue(false);
   const isDraggingCreateAnim = useSharedValue(false);
+  const isDragInterrupted = useSharedValue(false);
 
   const autoHScrollTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   const autoVScrollTimer = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -303,13 +326,35 @@ const DragEventProvider: FC<
       roundedDragDuration.value = -1;
       extraMinutes.value = 0;
       isDraggingSelectedEvent.value = false;
+      isDragInterrupted.value = false;
     })();
+  };
+
+  // Dropping the dragging event and ending the drag have to land in the same commit. Split
+  // across two commits, the first one renders the preview with no event inside it while the
+  // real event is still hidden behind `isDragging`, which reads as a flicker on release.
+  const finishDrag = () => {
+    unstable_batchedUpdates(() => {
+      resetDragState();
+      setIsDragging(false);
+    });
   };
 
   const handleIsDraggingChange = async (dragging: boolean) => {
     if (!dragging) {
       _stopAutoHScroll();
       _stopAutoVScroll();
+
+      // The gesture was taken away rather than released, so there is no move to commit.
+      // Resetting drops the drag offsets, which leaves the event drawn from its own start
+      // and end again — still the times it had before the gesture, since nothing was saved.
+      // Falling through instead would store it wherever the finger happened to be when the
+      // interruption landed.
+      if (isDragInterrupted.value) {
+        finishDrag();
+        return;
+      }
+
       const { newStartUnix, newEndUnix, resourceId } = calculateNewEventTimes();
       const updatedEvent = createUpdatedEvent(
         draggingEvent,
@@ -318,7 +363,11 @@ const DragEventProvider: FC<
         resourceId
       );
 
-      if (selectedEventId) {
+      // `selectedEventId` stays set for as long as the selection box is up, so it cannot
+      // tell a resize of that event from a long-press on a different one. The latter must
+      // still go through `onDragEventEnd` or the new event is never selected — the drag
+      // overlay appears and vanishes, and the original box stays put.
+      if (isDraggingSelectedEvent.value) {
         const shouldUpdate = shouldUpdateEvent(
           draggingEvent,
           newStartUnix,
@@ -334,7 +383,8 @@ const DragEventProvider: FC<
         await onDragEventEnd?.(updatedEvent as OnEventResponse);
       }
 
-      resetDragState();
+      finishDrag();
+      return;
     }
 
     setIsDragging(dragging);
@@ -698,6 +748,77 @@ const DragEventProvider: FC<
     }
   );
 
+  const claimDragSelectedEvent = useCallback(
+    (initialDrag: { startIndex: number; type: 'center' | 'top' | 'bottom' }) => {
+      'worklet';
+      // Mirrors the `!selectedEvent` guard on the JS trigger below: the selection's shared
+      // values sit at -1 whenever there is no selected event, and claiming a drag then would
+      // activate the pan gesture over nothing.
+      if (
+        dragSelectedStartUnix.value === -1 ||
+        dragSelectedStartMinutes.value === -1 ||
+        dragSelectedDuration.value === -1
+      ) {
+        return;
+      }
+      if (initialDrag.startIndex === 0) {
+        const startMinutes = dragSelectedStartMinutes.value;
+        dragStartMinutes.value = startMinutes;
+        roundedDragStartMinutes.value = startMinutes;
+        const diffDays = Math.floor(
+          (dragSelectedStartUnix.value - visibleDateUnixAnim.value) /
+            MILLISECONDS_IN_DAY
+        );
+        const startUnix =
+          visibleDateUnixAnim.value + diffDays * MILLISECONDS_IN_DAY;
+        dragStartUnix.value = startUnix;
+        roundedDragStartUnix.value = startUnix;
+      } else {
+        const startByIndex =
+          dragSelectedStartUnix.value +
+          initialDrag.startIndex * MILLISECONDS_IN_DAY;
+        const diffDays = Math.floor(
+          (startByIndex - visibleDateUnixAnim.value) / MILLISECONDS_IN_DAY
+        );
+
+        const startUnix =
+          visibleDateUnixAnim.value + diffDays * MILLISECONDS_IN_DAY;
+        dragStartUnix.value = startUnix;
+        roundedDragStartUnix.value = startUnix;
+
+        const originalStart =
+          dragSelectedStartUnix.value +
+          dragSelectedStartMinutes.value * MILLISECONDS_IN_MINUTE;
+        const diffMinutes = Math.floor(
+          (startByIndex - originalStart) / MILLISECONDS_IN_MINUTE
+        );
+        dragStartMinutes.value = 0 - diffMinutes;
+        roundedDragStartMinutes.value = 0 - diffMinutes;
+      }
+      const duration = dragSelectedDuration.value;
+      dragDuration.value = duration;
+      roundedDragDuration.value = duration;
+      dragSelectedType.value = initialDrag.type;
+      isDraggingAnim.value = true;
+      isDraggingSelectedEvent.value = true;
+    },
+    [
+      dragDuration,
+      dragSelectedDuration,
+      dragSelectedStartMinutes,
+      dragSelectedStartUnix,
+      dragSelectedType,
+      dragStartMinutes,
+      dragStartUnix,
+      isDraggingAnim,
+      isDraggingSelectedEvent,
+      roundedDragDuration,
+      roundedDragStartMinutes,
+      roundedDragStartUnix,
+      visibleDateUnixAnim,
+    ]
+  );
+
   const triggerDragSelectedEvent = useCallback(
     (initialDrag: {
       startIndex: number;
@@ -708,7 +829,7 @@ const DragEventProvider: FC<
       if (!selectedEvent) {
         return;
       }
-      if (selectedEvent && onDragSelectedEventStart) {
+      if (onDragSelectedEventStart) {
         onDragSelectedEventStart(selectedEvent);
       }
       setDraggingEvent(selectedEvent);
@@ -734,71 +855,28 @@ const DragEventProvider: FC<
           dragX.value = initialDrag.resourceIndex * eventWidth + hourWidth + 1;
         }
       }
+      // `DraggableEvent` already claimed the drag on touch-down, writing every `drag*` value
+      // the pan reads. This lands a frame or more later, with the finger already moving, so
+      // claiming again here would snap the drag back to where it started. Callers that don't
+      // claim on touch-down (the resource draggable) still get the drag opened here.
       runOnUI(() => {
-        if (initialDrag.startIndex === 0) {
-          const startMinutes = dragSelectedStartMinutes.value;
-          dragStartMinutes.value = startMinutes;
-          roundedDragStartMinutes.value = startMinutes;
-          const diffDays = Math.floor(
-            (dragSelectedStartUnix.value - visibleDateUnixAnim.value) /
-              MILLISECONDS_IN_DAY
-          );
-          const startUnix =
-            visibleDateUnixAnim.value + diffDays * MILLISECONDS_IN_DAY;
-          dragStartUnix.value = startUnix;
-          roundedDragStartUnix.value = startUnix;
-        } else {
-          const startByIndex =
-            dragSelectedStartUnix.value +
-            initialDrag.startIndex * MILLISECONDS_IN_DAY;
-          const diffDays = Math.floor(
-            (startByIndex - visibleDateUnixAnim.value) / MILLISECONDS_IN_DAY
-          );
-
-          const startUnix =
-            visibleDateUnixAnim.value + diffDays * MILLISECONDS_IN_DAY;
-          dragStartUnix.value = startUnix;
-          roundedDragStartUnix.value = startUnix;
-
-          const originalStart =
-            dragSelectedStartUnix.value +
-            dragSelectedStartMinutes.value * MILLISECONDS_IN_MINUTE;
-          const diffMinutes = Math.floor(
-            (startByIndex - originalStart) / MILLISECONDS_IN_MINUTE
-          );
-          dragStartMinutes.value = 0 - diffMinutes;
-          roundedDragStartMinutes.value = 0 - diffMinutes;
+        if (isDraggingSelectedEvent.value) {
+          return;
         }
-        const duration = dragSelectedDuration.value;
-        dragDuration.value = duration;
-        roundedDragDuration.value = duration;
-        dragSelectedType.value = initialDrag.type;
-        isDraggingAnim.value = true;
-        isDraggingSelectedEvent.value = true;
+        claimDragSelectedEvent(initialDrag);
       })();
     },
     [
+      claimDragSelectedEvent,
       columnWidth,
-      dragDuration,
-      dragSelectedDuration,
-      dragSelectedStartMinutes,
-      dragSelectedStartUnix,
-      dragSelectedType,
-      dragStartMinutes,
-      dragStartUnix,
       dragX,
       hourWidth,
-      isDraggingAnim,
       isDraggingSelectedEvent,
       offsetX,
       onDragSelectedEventStart,
       resourcePerPage,
       resources,
-      roundedDragDuration,
-      roundedDragStartMinutes,
-      roundedDragStartUnix,
       selectedEvent,
-      visibleDateUnixAnim,
     ]
   );
 
@@ -1018,6 +1096,7 @@ const DragEventProvider: FC<
       defaultDuration,
       isDraggingCreateAnim,
       dragX,
+      isDragInterrupted,
     }),
     [
       dragStep,
@@ -1046,6 +1125,7 @@ const DragEventProvider: FC<
       defaultDuration,
       isDraggingCreateAnim,
       dragX,
+      isDragInterrupted,
     ]
   );
 
@@ -1053,6 +1133,7 @@ const DragEventProvider: FC<
     () => ({
       triggerDragEvent: allowDragToEdit ? triggerDragEvent : undefined,
       triggerDragSelectedEvent,
+      claimDragSelectedEvent,
       triggerDragCreateEvent: allowDragToCreate
         ? triggerDragCreateEvent
         : undefined,
@@ -1061,6 +1142,7 @@ const DragEventProvider: FC<
       allowDragToEdit,
       triggerDragEvent,
       triggerDragSelectedEvent,
+      claimDragSelectedEvent,
       allowDragToCreate,
       triggerDragCreateEvent,
     ]

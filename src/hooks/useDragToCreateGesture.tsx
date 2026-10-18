@@ -1,7 +1,9 @@
+import { Platform } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { useCalendar } from '../context/CalendarProvider';
 import { useDragEvent } from '../context/DragEventProvider';
+import { failOnScrollIntent } from '../utils/scrollIntent';
 import { clampValues, findNearestNumber, roundMinutes } from '../utils/utils';
 
 const useDragToCreateGesture = ({
@@ -41,6 +43,7 @@ const useDragToCreateGesture = ({
 
   const initialStartY = useSharedValue(0);
   const initialStartX = useSharedValue(0);
+  const initialTouchY = useSharedValue(0);
 
   const computeDragValues = (
     initialStart: number,
@@ -143,6 +146,7 @@ const useDragToCreateGesture = ({
     .onBegin((event) => {
       initialStartX.value = event.x;
       initialStartY.value = event.translationY;
+      initialTouchY.value = event.y;
     })
     .onStart(() => {
       initialDragState.value = {
@@ -193,11 +197,19 @@ const useDragToCreateGesture = ({
         duration: 150,
       });
     })
-    .onTouchesMove((_event, state) => {
+    .onTouchesMove((event, state) => {
       if (isDraggingCreateAnim.value && isDraggingAnim.value) {
         state.activate();
-      } else {
+      } else if (Platform.OS === 'ios') {
         state.fail();
+      } else {
+        // Leaves room for the background long press to claim the touch. See `failOnScrollIntent`.
+        failOnScrollIntent(
+          event,
+          state,
+          initialStartX.value,
+          initialTouchY.value
+        );
       }
     })
     .onTouchesUp(() => {

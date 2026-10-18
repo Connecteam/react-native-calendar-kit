@@ -1,7 +1,10 @@
+import { I18nManager } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { useCalendar } from '../context/CalendarProvider';
 import { useDragEvent } from '../context/DragEventProvider';
+import { failOnScrollIntent } from '../utils/scrollIntent';
+import { createTouchTrackerGesture } from '../utils/touchTrackerGesture';
 import { clampValues, findNearestNumber, roundMinutes } from '../utils/utils';
 
 const useDragEventGesture = () => {
@@ -12,6 +15,7 @@ const useDragEventGesture = () => {
     visibleDateUnixAnim,
     calendarData,
     columns,
+    numberOfDays,
     enableResourceScroll,
   } = useCalendar();
   const {
@@ -31,6 +35,7 @@ const useDragEventGesture = () => {
     dragX,
   } = useDragEvent();
   const initialX = useSharedValue(0);
+  const initialY = useSharedValue(0);
 
   const findNearestIndex = (visibleUnix: number): number | undefined => {
     'worklet';
@@ -132,8 +137,27 @@ const useDragEventGesture = () => {
     const initialOffset = dayIndexOffset * columnWidth;
     const newX = initialOffset + translationX + extraX;
     const newDragDayIndex = Math.floor(newX / columnWidth);
-    const clampedDragDayIndex = clampValues(newDragDayIndex, 0, columns - 1);
-    const nextDayIndex = visibleIndex + clampedDragDayIndex;
+    // RTL needs two corrections versus the LTR math above:
+    //   1. The hour/time axis sits on the RIGHT in RTL, so the day grid is left-aligned at
+    //      x≈0. `newX` has `hourWidth` subtracted (a left-axis assumption), so add it back —
+    //      `newX + hourWidth` is the raw finger x, and the column from the left is
+    //      `floor(fingerX / colW)`.
+    //   2. The grid content is mirrored (scaleX:-1 in CalendarList), so physical column 0
+    //      from the left shows the *latest* visible day. Reverse the column into a date
+    //      offset across the visible window (`numberOfDays`, not `columns` == `daysToShow`).
+    let dayOffset: number;
+    if (I18nManager.isRTL) {
+      const fingerX = newX + hourWidth;
+      const rtlColumnFromLeft = clampValues(
+        Math.floor(fingerX / columnWidth),
+        0,
+        numberOfDays - 1
+      );
+      dayOffset = numberOfDays - 1 - rtlColumnFromLeft;
+    } else {
+      dayOffset = clampValues(newDragDayIndex, 0, columns - 1);
+    }
+    const nextDayIndex = visibleIndex + dayOffset;
     const targetDayUnix = calendarData.visibleDatesArray[nextDayIndex];
 
     if (!targetDayUnix) {
@@ -146,8 +170,9 @@ const useDragEventGesture = () => {
 
   const gesture = Gesture.Pan()
     .manualActivation(true)
-    .onBegin(({ x }) => {
+    .onBegin(({ x, y }) => {
       initialX.value = x;
+      initialY.value = y;
     })
     .onStart(() => {
       initialDragState.value = {
@@ -192,12 +217,13 @@ const useDragEventGesture = () => {
         duration: 150,
       });
     })
-    .onTouchesMove((_event, state) => {
+    .onTouchesMove((event, state) => {
       if (isDraggingAnim.value && !isDraggingCreateAnim.value) {
         state.activate();
-      } else {
-        state.fail();
+        return;
       }
+      // Nothing is being dragged, so this touch belongs to whoever wants to scroll.
+      failOnScrollIntent(event, state, initialX.value, initialY.value);
     })
     .onTouchesUp(() => {
       if (isDraggingAnim.value && !isDraggingCreateAnim.value) {
@@ -212,6 +238,57 @@ const useDragEventGesture = () => {
     });
 
   return gesture;
+};
+
+/**
+ * Notices the touch ending even when the drag gesture above is no longer listening.
+ *
+ * That gesture fails itself while nothing is being dragged, so the calendar can scroll. A drag
+ * started by a long press right after such a failure has no live handler left to see the release,
+ * and `isDraggingAnim` is never cleared: the floating drag box stays on top of the calendar until
+ * the screen is remounted.
+ *
+ * A touch-tracker gesture never activates and never fails on its own, so it keeps receiving touch
+ * events for the whole gesture and can close the drag out.
+ *
+ * Cancels matter as much as releases here. The system takes the touch away without ever lifting it
+ * when the app goes to the background with a finger down, when a call or the notification shade
+ * arrives, or when a system edge gesture wins — and every one of those used to leave
+ * `isDraggingAnim` set, which wedges the calendar: the drag pan then activates on every touch, so
+ * the grid no longer scrolls and the shift no longer moves.
+ */
+export const useDragReleaseTracker = () => {
+  const {
+    isDraggingAnim,
+    isDraggingCreateAnim,
+    dragPosition,
+    isDragInterrupted,
+  } = useDragEvent();
+
+  const endDrag = (interrupted: boolean) => {
+    'worklet';
+    if (isDraggingAnim.value && !isDraggingCreateAnim.value) {
+      // Set before the flag below, which is what starts the teardown that reads it.
+      isDragInterrupted.value = interrupted;
+      isDraggingAnim.value = false;
+      dragPosition.value = {
+        x: -1,
+        y: -1,
+        translationX: -1,
+        translationY: -1,
+      };
+    }
+  };
+
+  return createTouchTrackerGesture()
+    .onTouchesUp(() => {
+      'worklet';
+      endDrag(false);
+    })
+    .onTouchesCancelled(() => {
+      'worklet';
+      endDrag(true);
+    });
 };
 
 export default useDragEventGesture;

@@ -4,10 +4,13 @@ import type {
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from 'react-native';
-import { Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+// RefreshControl must come from gesture-handler, like the ScrollView it sits in: the ScrollView waits for its
+// handler, which is how Android keeps pull-to-refresh and scrolling from locking each other up.
 import {
   Gesture,
   GestureDetector,
+  RefreshControl,
   ScrollView,
 } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -27,7 +30,9 @@ import { BodyContext } from './context/BodyContext';
 import { useCalendar } from './context/CalendarProvider';
 import { useResources } from './context/EventsProvider';
 import { useLocale } from './context/LocaleProvider';
-import useDragEventGesture from './hooks/useDragEventGesture';
+import useDragEventGesture, {
+  useDragReleaseTracker,
+} from './hooks/useDragEventGesture';
 import useDragToCreateGesture from './hooks/useDragToCreateGesture';
 import usePinchToZoom from './hooks/usePinchToZoom';
 import useSyncedList from './hooks/useSyncedList';
@@ -117,11 +122,12 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
     height: timelineHeight.value,
   }));
 
-  const { pinchGesture, pinchGestureRef } = usePinchToZoom();
+  const { pinchGesture } = usePinchToZoom();
   const dragEventGesture = useDragEventGesture();
   const dragToCreateGesture = useDragToCreateGesture({
     mode: dragToCreateMode,
   });
+  const dragReleaseTracker = useDragReleaseTracker();
 
   const _onLayout = (event: LayoutChangeEvent) => {
     scrollVisibleHeight.current = event.nativeEvent.layout.height;
@@ -291,14 +297,14 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
     ]
   );
 
-  const composedGesture =
-    Platform.OS === 'android'
-      ? Gesture.Race(
-          pinchGesture,
-          dragEventGesture.activateAfterLongPress(200),
-          dragToCreateGesture.activateAfterLongPress(200)
-        )
-      : Gesture.Race(pinchGesture, dragEventGesture, dragToCreateGesture);
+  // The release tracker sits outside the race so it can never lose it, and is simultaneous
+  // with the others so activating one of them doesn't cancel it. No `activateAfterLongPress` on
+  // Android: the drag pans hand unclaimed touches to the scroll views themselves (see
+  // `failOnScrollIntent`), and a drag on the selected event must follow the finger at once.
+  const composedGesture = Gesture.Simultaneous(
+    Gesture.Race(pinchGesture, dragEventGesture, dragToCreateGesture),
+    dragReleaseTracker
+  );
 
   const leftSize = numberOfDays > 1 || !!resources ? hourWidth : 0;
 
@@ -328,8 +334,7 @@ const CalendarBody: React.FC<CalendarBodyProps> = ({
             onRefresh ? (
               <RefreshControl refreshing={false} onRefresh={_onRefresh} />
             ) : undefined
-          }
-          simultaneousHandlers={pinchGestureRef}>
+          }>
           <BodyContext.Provider value={value}>
             <Animated.View
               style={[
