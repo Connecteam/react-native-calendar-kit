@@ -293,7 +293,7 @@ export const CalendarList = React.forwardRef<
           animatedRef?.(node);
         }}
         horizontal={true}
-        style={style}
+        style={isRTLMirrored ? [style, styles.ltr] : style}
         contentContainerStyle={[contentContainerStyle, { width: totalSize }]}
         onScroll={onScroll}
         onScrollBeginDrag={onScrollBeginDrag}
@@ -313,7 +313,12 @@ export const CalendarList = React.forwardRef<
         snapToOffsets={snapToOffsets}
         {...{ onWheel }}>
         {isRTLMirrored ? (
-          <View style={[{ width: totalSize, height: '100%' }, styles.mirrored]}>
+          <View
+            style={[
+              { width: totalSize, height: '100%' },
+              styles.mirrored,
+              styles.rtl,
+            ]}>
             {content}
           </View>
         ) : (
@@ -347,11 +352,18 @@ export const CalendarList = React.forwardRef<
  * scroll view and its content are each flipped horizontally: the content reads in its normal
  * orientation, while the list scrolls and lays out its pages right to left. Applies to both the
  * day bar and the grid, which are both CalendarLists.
+ *
+ * The scroll view itself is laid out LTR, and only its content RTL. Android's native horizontal
+ * scroll view handles RTL on its own by snapping to the far end once its content is laid out,
+ * which threw away the initial offset and showed an empty stretch of the list. iOS has no such
+ * behavior, so this changes nothing there.
  */
 const isRTLMirrored = I18nManager.isRTL;
 
 const styles = StyleSheet.create({
   mirrored: { transform: [{ scaleX: -1 }] },
+  ltr: { direction: 'ltr' },
+  rtl: { direction: 'rtl' },
 });
 
 CalendarList.displayName = 'CalendarList';
