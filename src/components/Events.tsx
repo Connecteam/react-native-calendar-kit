@@ -85,10 +85,10 @@ const Events: FC<{
   );
 
   const _onLongPressEvent = useCallback(
-    (event: PackedEvent) => {
+    (event: PackedEvent, resEvent?: GestureResponderEvent) => {
       const clonedEvent = { ...event, _internal: undefined };
       delete clonedEvent._internal;
-      onLongPressEvent?.(clonedEvent);
+      onLongPressEvent?.(clonedEvent, resEvent);
     },
     [onLongPressEvent]
   );

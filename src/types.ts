@@ -223,7 +223,10 @@ export interface ActionsProviderProps {
   onDragEventEnd?: (event: OnEventResponse) => Promise<void> | void;
 
   /** Callback when the event is long pressed */
-  onLongPressEvent?: (event: OnEventResponse) => void;
+  onLongPressEvent?: (
+    event: OnEventResponse,
+    gestureEvent?: GestureResponderEvent
+  ) => void;
 
   /** Callback when the selected event is dragged */
   onDragSelectedEventStart?: (event: SelectedEventType) => void;
