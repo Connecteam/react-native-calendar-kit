@@ -23,7 +23,8 @@ This branch holds only the package (`packages/react-native-calendar-kit` of the 
 - **`DraggableEvent`** is laid out from `selectedEvent` and hidden through React state, so selecting and releasing don't blink.
 - **RTL** (CT-44015): `CalendarList` mirrors the day bar and the grid, using a GPU layer on Android. Taps and horizontal drags map back to the right day.
 - **`onLongPressEvent`** also receives the gesture event (CT-63196).
-- **Pinch to zoom** keeps the row under the fingers in place. `isPinching` is on the calendar context.
+- **Pinch to zoom** keeps the row under the fingers in place. `isPinching` is on the calendar context. On Android the scroll views run alongside the pinch and stop scrolling while it's active.
+- **`CalendarList`'s `contentOffset`** follows the list's position, since Android re-applies it on every prop update.
 - **`renderEvent`** gets a third argument, `EventStaticSize`, the event's settled plain size. `SizeAnimation` values follow it once a pinch settles.
 - **`onEventsRendered` / `onEventsUnmounted`** report the days each page shows. `EventsProvider` packs the whole span of the `events` prop.
 - The per-event day walk uses native `Date` instead of luxon.
