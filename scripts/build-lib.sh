@@ -3,8 +3,8 @@
 #
 # The JavaScript (lib/commonjs, lib/module) is built with upstream's own tooling, in a clone of the
 # upstream monorepo. The declarations (lib/typescript) are built against the React Native types of a
-# mobiapp checkout, the app that consumes this fork: upstream builds them against React 19 types,
-# which mobiapp doesn't use.
+# mobiapp checkout, the app that consumes this fork (upstream builds them against React 19 types,
+# which mobiapp doesn't use), and the luxon and lodash types from the upstream clone.
 #
 # Usage: scripts/build-lib.sh <upstream-clone> <mobiapp-checkout>
 #   <upstream-clone>    a clone of https://github.com/howljs/react-native-calendar-kit, any tag; its
@@ -58,9 +58,10 @@ cat > "$TMP/tsconfig.json" <<JSON
     "lib": ["es2022", "dom"],
     "baseUrl": "..",
     "paths": {
-      "lodash.debounce": ["node_modules/@types/lodash/debounce"],
-      "lodash.isequal": ["node_modules/@types/lodash/isEqual"],
-      "lodash.merge": ["node_modules/@types/lodash/merge"]
+      "luxon": ["$UPSTREAM/node_modules/@types/luxon"],
+      "lodash.debounce": ["$UPSTREAM/node_modules/@types/lodash.debounce"],
+      "lodash.isequal": ["$UPSTREAM/node_modules/@types/lodash.isequal"],
+      "lodash.merge": ["$UPSTREAM/node_modules/@types/lodash.merge"]
     }
   },
   "include": ["src"]

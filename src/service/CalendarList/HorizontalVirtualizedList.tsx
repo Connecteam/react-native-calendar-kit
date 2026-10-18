@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { I18nManager } from 'react-native';
 import { View } from './View';
 
 interface HorizontalVirtualizedListProps {
@@ -69,7 +70,16 @@ export const HorizontalVirtualizedList = React.memo(
           position: 'relative',
           width: totalSize,
           height: '100%',
-          transform: [{ translateX: firstVisiblePosition }],
+          // Connecteam: in RTL, React Native lays the items' `left` out from the right edge, but
+          // doesn't mirror transforms, so the shift has to run the other way to keep the items
+          // where their positions say.
+          transform: [
+            {
+              translateX: I18nManager.isRTL
+                ? -firstVisiblePosition
+                : firstVisiblePosition,
+            },
+          ],
         }}>
         {renderItems}
       </View>
