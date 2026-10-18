@@ -25,12 +25,16 @@ export interface DraggableEventProps {
   index: number;
   startUnix: number;
   visibleDates: Record<string, { diffDays: number; unix: number }>;
-  /** Start-of-day of the selected event, in milliseconds. */
-  selectedStartUnix: number;
+  /**
+   * Start-of-day of the selected event, in milliseconds. Callers that don't have the selection's
+   * times (the resource overlay) leave out this and the two below, which then fall back to the
+   * `dragSelected*` shared values.
+   */
+  selectedStartUnix?: number;
   /** Minutes from midnight to the selected event's start. */
-  selectedStartMinutes: number;
+  selectedStartMinutes?: number;
   /** Length of the selected event, in minutes. */
-  selectedDuration: number;
+  selectedDuration?: number;
   renderEvent?: (
     event: SelectedEventType,
     options: {
@@ -68,6 +72,9 @@ export const DraggableEvent: FC<DraggableEventProps> = ({
   );
   const { minuteHeight, columnWidth, start, numberOfDays } = useBody();
   const {
+    dragSelectedStartUnix,
+    dragSelectedDuration,
+    dragSelectedStartMinutes,
     selectedEvent,
     isDraggingAnim,
     isDragging: isDraggingState,
@@ -104,17 +111,20 @@ export const DraggableEvent: FC<DraggableEventProps> = ({
    * drew itself zero-height at the top of the grid before snapping into place.
    */
   const top = useDerivedValue(() => {
+    const startDayUnix = selectedStartUnix ?? dragSelectedStartUnix.value;
+    const startMinutes =
+      selectedStartMinutes ?? dragSelectedStartMinutes.value;
     if (index > 0) {
       const selectedStart =
-        selectedStartUnix + selectedStartMinutes * MILLISECONDS_IN_MINUTE;
+        startDayUnix + startMinutes * MILLISECONDS_IN_MINUTE;
       const diffMinutes = (startUnix - selectedStart) / MILLISECONDS_IN_MINUTE;
       return (0 - diffMinutes - start) * minuteHeight.value;
     }
-    return (selectedStartMinutes - start) * minuteHeight.value;
+    return (startMinutes - start) * minuteHeight.value;
   }, [startUnix, start, index, selectedStartUnix, selectedStartMinutes]);
 
   const eventHeight = useDerivedValue(
-    () => selectedDuration * minuteHeight.value,
+    () => (selectedDuration ?? dragSelectedDuration.value) * minuteHeight.value,
     [selectedDuration]
   );
   const startX = resourceIndex !== -1 ? resourceIndex * eventWidth : 0;
