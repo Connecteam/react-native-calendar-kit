@@ -3,18 +3,16 @@ import { Gesture } from 'react-native-gesture-handler';
 import type { GestureType } from 'react-native-gesture-handler';
 import {
   scrollTo,
-  setNativeProps,
+  useAnimatedReaction,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useCalendar } from '../context/CalendarProvider';
 import { clampValues } from '../utils/utils';
 import { Platform } from 'react-native';
 
-const SCALE_FACTOR = 0.5;
-const SPRING_DAMPING = 15;
-const SPRING_STIFFNESS = 100;
-const BOUNDARY_PADDING = 8;
+const OVERSCROLL_HEIGHT = 8;
+const SETTLE_DURATION_MS = 200;
 
 const usePinchToZoom = () => {
   const {
@@ -22,83 +20,97 @@ const usePinchToZoom = () => {
     maxTimeIntervalHeight,
     minTimeIntervalHeight,
     timeIntervalHeight,
+    timelineHeight,
+    scrollVisibleHeightAnim,
+    spaceFromTop,
     offsetY,
     allowPinchToZoom,
+    isPinching,
   } = useCalendar();
 
-  const startOffsetY = useSharedValue(offsetY.value);
   const pinchGestureRef = useRef<GestureType | undefined>(undefined);
-  const startScale = useSharedValue(1);
+  // Scale accumulated by the web wheel zoom below.
   const lastScale = useSharedValue(1);
 
-  const pinchGesture = Gesture.Pinch()
-    .onBegin(() => {
-      startScale.value = lastScale.value;
-      startOffsetY.value = offsetY.value;
-    })
-    .runOnJS(false)
-    .onUpdate(({ focalY, scale, velocity }) => {
-      if (velocity === 0) {
-        startOffsetY.value = offsetY.value;
-        return;
-      }
-      // Calculate new scale and height values
-      const newScale = startScale.value * scale;
-      const scaledDiff = (newScale - lastScale.value) * SCALE_FACTOR;
-      const newHeight = timeIntervalHeight.value * (1 + scaledDiff);
-      // Calculate scaling origin point and height difference
-      const scaleOrigin =
-        (focalY + startOffsetY.value) / timeIntervalHeight.value;
-      const heightDiff = newHeight - timeIntervalHeight.value;
-      // Clamp height within allowed bounds
-      const clampedHeight = clampValues(
-        newHeight,
-        minTimeIntervalHeight - BOUNDARY_PADDING,
-        maxTimeIntervalHeight + BOUNDARY_PADDING
-      );
+  const startHeight = useSharedValue(0);
+  // Grid position under the fingers, in row heights from the first hour line.
+  const anchorRow = useSharedValue(0);
+  const hasAnchor = useSharedValue(false);
+  const lastFocalY = useSharedValue(0);
+  const isSettling = useSharedValue(false);
 
-      timeIntervalHeight.value = clampedHeight;
-      if (
-        clampedHeight > minTimeIntervalHeight - BOUNDARY_PADDING &&
-        clampedHeight < maxTimeIntervalHeight + BOUNDARY_PADDING
-      ) {
-        const newOffsetY = startOffsetY.value + heightDiff * scaleOrigin;
-        startOffsetY.value = newOffsetY;
-        offsetY.value = newOffsetY;
-        if (typeof setNativeProps === 'function') {
-          setNativeProps(verticalListRef, {
-            contentOffset: { y: newOffsetY, x: 0 },
-          });
-        } else {
-          scrollTo(verticalListRef, 0, newOffsetY, true);
-        }
+  const scrollToAnchor = (height: number, focalY: number) => {
+    'worklet';
+    const maxOffset = Math.max(
+      0,
+      timelineHeight.value - scrollVisibleHeightAnim.value
+    );
+    const offset = anchorRow.value * height + spaceFromTop - focalY;
+    scrollTo(verticalListRef, 0, clampValues(offset, 0, maxOffset), false);
+  };
+
+  // Keeps the anchor under the last focal point while the height eases back into bounds.
+  useAnimatedReaction(
+    () => timeIntervalHeight.value,
+    (height) => {
+      if (isSettling.value) {
+        scrollToAnchor(height, lastFocalY.value);
       }
-      lastScale.value = newScale;
+    }
+  );
+
+  // Connecteam: the grid row under the fingers stays under them for the whole pinch, instead of
+  // drifting with the accumulated scale, and `isPinching` tells event cards when the height has
+  // settled (see Events' useSettledMinuteHeight).
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      isSettling.value = false;
+      startHeight.value = timeIntervalHeight.value;
+      hasAnchor.value = false;
+      isPinching.value = true;
+    })
+    .onUpdate(({ focalY, scale }) => {
+      if (!hasAnchor.value) {
+        anchorRow.value =
+          (offsetY.value + focalY - spaceFromTop) / startHeight.value;
+        hasAnchor.value = true;
+      }
+      lastFocalY.value = focalY;
+
+      const newHeight = clampValues(
+        startHeight.value * scale,
+        minTimeIntervalHeight - OVERSCROLL_HEIGHT,
+        maxTimeIntervalHeight + OVERSCROLL_HEIGHT
+      );
+      timeIntervalHeight.value = newHeight;
+      scrollToAnchor(newHeight, focalY);
     })
     .onEnd(() => {
-      // When gesture ends, animate to final values within bounds
       const finalHeight = clampValues(
         timeIntervalHeight.value,
         minTimeIntervalHeight,
         maxTimeIntervalHeight
       );
-      timeIntervalHeight.value = withSpring(finalHeight, {
-        damping: SPRING_DAMPING,
-        stiffness: SPRING_STIFFNESS,
-      });
-      const scaleFactor = finalHeight / timeIntervalHeight.value;
-      const targetOffset = startOffsetY.value * scaleFactor;
-      offsetY.value = targetOffset;
-      if (typeof setNativeProps === 'function') {
-        setNativeProps(verticalListRef, {
-          contentOffset: { y: targetOffset, x: 0 },
-        });
-      } else {
-        scrollTo(verticalListRef, 0, targetOffset, true);
+      if (finalHeight === timeIntervalHeight.value) {
+        isPinching.value = false;
+        return;
       }
-      // Reset scale values
-      lastScale.value = 1;
-      startScale.value = 1;
+      isSettling.value = true;
+      timeIntervalHeight.value = withTiming(
+        finalHeight,
+        { duration: SETTLE_DURATION_MS },
+        (finished) => {
+          if (finished) {
+            isSettling.value = false;
+            isPinching.value = false;
+          }
+        }
+      );
+    })
+    .onFinalize(() => {
+      if (!isSettling.value) {
+        isPinching.value = false;
+      }
     })
     .enabled(allowPinchToZoom)
     .withRef(pinchGestureRef);

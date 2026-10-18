@@ -58,6 +58,7 @@ export interface CalendarContextProps {
   allowDragToCreate: boolean;
   allowDragToEdit: boolean;
   dragToCreateMode: 'duration' | 'date-time';
+  isPinching: SharedValue<boolean>;
   allowHorizontalSwipe: boolean;
   enableResourceScroll: boolean;
   resourcePerPage: number;

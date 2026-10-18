@@ -299,6 +299,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
   const linkedScrollGroup = useLinkedScrollGroup(offsetX);
   const scrollVisibleHeightAnim = useSharedValue(0);
   const timeIntervalHeight = useSharedValue(initialTimeIntervalHeight);
+  const isPinching = useSharedValue(false);
   const eventsRef = useRef<EventsRef>(null);
 
   const extraHeight = spaceFromTop + spaceFromBottom;
@@ -793,6 +794,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToCreate,
       allowDragToEdit,
       dragToCreateMode,
+      isPinching,
       allowHorizontalSwipe,
       enableResourceScroll: isResourceMode && enableResourceScroll,
       resourcePerPage,
@@ -846,6 +848,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToCreate,
       allowDragToEdit,
       dragToCreateMode,
+      isPinching,
       allowHorizontalSwipe,
       enableResourceScroll,
       isResourceMode,
