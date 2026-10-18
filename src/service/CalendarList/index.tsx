@@ -10,6 +10,7 @@ import React, {
 import {
   GestureResponderEvent,
   I18nManager,
+  Platform,
   StyleSheet,
   View,
   type LayoutChangeEvent,
@@ -293,7 +294,7 @@ export const CalendarList = React.forwardRef<
           animatedRef?.(node);
         }}
         horizontal={true}
-        style={isRTLMirrored ? [style, styles.ltr] : style}
+        style={isAndroidRTL ? [style, styles.ltr] : style}
         contentContainerStyle={[contentContainerStyle, { width: totalSize }]}
         onScroll={onScroll}
         onScrollBeginDrag={onScrollBeginDrag}
@@ -317,7 +318,7 @@ export const CalendarList = React.forwardRef<
             style={[
               { width: totalSize, height: '100%' },
               styles.mirrored,
-              styles.rtl,
+              isAndroidRTL && styles.rtl,
             ]}>
             {content}
           </View>
@@ -353,12 +354,13 @@ export const CalendarList = React.forwardRef<
  * orientation, while the list scrolls and lays out its pages right to left. Applies to both the
  * day bar and the grid, which are both CalendarLists.
  *
- * The scroll view itself is laid out LTR, and only its content RTL. Android's native horizontal
- * scroll view handles RTL on its own by snapping to the far end once its content is laid out,
- * which threw away the initial offset and showed an empty stretch of the list. iOS has no such
- * behavior, so this changes nothing there.
+ * On Android the scroll view itself is laid out LTR, and only its content RTL. Android's native
+ * horizontal scroll view handles RTL on its own by snapping to the far end once its content is laid
+ * out, which threw away the initial offset and showed an empty stretch of the list. iOS lays out an
+ * RTL scroll view differently, and the mirroring above already accounts for it there.
  */
 const isRTLMirrored = I18nManager.isRTL;
+const isAndroidRTL = isRTLMirrored && Platform.OS === 'android';
 
 const styles = StyleSheet.create({
   mirrored: { transform: [{ scaleX: -1 }] },
