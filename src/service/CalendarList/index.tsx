@@ -173,6 +173,27 @@ export const CalendarList = React.forwardRef<
     const internalOffset = useSharedValue(initialOffset ?? 0);
     const scrollOffsetAnim = useScrollViewOffset(animScrollRef, internalOffset);
 
+    // Android re-sends all of a scroll view's props with every update, `contentOffset` included, so
+    // it has to say where the list is whenever another prop (e.g. `scrollEnabled` while pinching)
+    // changes. Left at the initial offset, it scrolled the list back to the first page shown.
+    const lastInitialOffset = useRef(initialOffset);
+    const contentOffset = useMemo(() => {
+      const x =
+        initialOffset !== lastInitialOffset.current
+          ? (initialOffset ?? 0)
+          : internalOffset.value;
+      lastInitialOffset.current = initialOffset;
+      return { x, y: 0 };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the other scroll view props change
+    }, [
+      initialOffset,
+      scrollEnabled,
+      pagingEnabled,
+      snapToInterval,
+      snapToOffsets,
+      totalSize,
+    ]);
+
     const extraScrollDataRef = useRef(extraScrollData);
     extraScrollDataRef.current = extraScrollData;
     const onVisibleColumnChangedCb = useLatestCallback(onVisibleColumnChanged);
@@ -307,7 +328,7 @@ export const CalendarList = React.forwardRef<
         onMomentumScrollBegin={onMomentumScrollBegin}
         onMomentumScrollEnd={onMomentumScrollEnd}
         onLayout={onLayout}
-        contentOffset={{ x: initialOffset ?? 0, y: 0 }}
+        contentOffset={contentOffset}
         scrollEventThrottle={scrollEventThrottle}
         scrollEnabled={scrollEnabled}
         simultaneousHandlers={simultaneousHandlers}
