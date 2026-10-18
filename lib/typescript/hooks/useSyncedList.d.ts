@@ -1,0 +1,15 @@
+import { ScrollType } from '../constants';
+declare const useSyncedList: ({ id }: {
+    id: ScrollType;
+}) => {
+    onScrollBeginDrag: () => void;
+    onMomentumScrollBegin: () => void;
+    onVisibleColumnChanged: (props: {
+        index: number;
+        column: number;
+        columns: number;
+        offset: number;
+        extraScrollData: Record<string, any>;
+    }) => void;
+};
+export default useSyncedList;

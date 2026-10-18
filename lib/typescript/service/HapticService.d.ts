@@ -1,0 +1,8 @@
+declare class HapticService {
+    isHapticFeedbackEnabled: boolean;
+    useExpoHaptics: boolean;
+    setEnabled(isEnabled: boolean): void;
+    impact(): any;
+    selection(): any;
+}
+export default HapticService;

@@ -1,0 +1,4 @@
+import React from 'react';
+import type { CalendarBodyProps } from './types';
+declare const _default: React.NamedExoticComponent<CalendarBodyProps>;
+export default _default;

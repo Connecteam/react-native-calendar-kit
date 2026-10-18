@@ -1,0 +1,6 @@
+export interface Store<T extends Record<string, any>> {
+    getState: () => T;
+    setState: (newState: T) => void;
+    subscribe: (listener: () => void) => () => void;
+}
+export declare const createStore: <T extends Record<string, any>>(initialState: T) => Store<T>;

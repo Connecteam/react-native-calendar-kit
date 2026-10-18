@@ -1,0 +1,10 @@
+import React from 'react';
+import type { PropsWithChildren } from 'react';
+export interface TimezoneContextProps {
+    timeZone: string;
+}
+declare const TimezoneProvider: React.FC<PropsWithChildren<{
+    timeZone: string;
+}>>;
+export default TimezoneProvider;
+export declare const useTimezone: () => TimezoneContextProps;

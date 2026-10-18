@@ -1,0 +1,4 @@
+declare const useDragToCreateGesture: ({ mode, }: {
+    mode: 'duration' | 'date-time';
+}) => import("react-native-gesture-handler/lib/typescript/handlers/gestures/panGesture").PanGesture;
+export default useDragToCreateGesture;

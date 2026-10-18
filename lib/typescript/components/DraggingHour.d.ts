@@ -1,0 +1,8 @@
+import type { FC } from 'react';
+import React from 'react';
+import type { RenderHourProps } from '../types';
+interface DraggingHourProps {
+    renderHour?: (props: RenderHourProps) => React.ReactNode;
+}
+declare const DraggingHour: FC<DraggingHourProps>;
+export default DraggingHour;

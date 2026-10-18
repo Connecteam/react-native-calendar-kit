@@ -1,0 +1,6 @@
+import React from 'react';
+import type { CalendarKitHandle, CalendarProviderProps } from './types';
+declare const _default: React.ForwardRefExoticComponent<CalendarProviderProps & {
+    children?: React.ReactNode;
+} & React.RefAttributes<CalendarKitHandle>>;
+export default _default;

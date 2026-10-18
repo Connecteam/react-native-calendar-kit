@@ -1,0 +1,9 @@
+import React, { PropsWithChildren } from 'react';
+import { StyleProp, ViewStyle } from 'react-native';
+interface DayItemProps {
+    dateUnix: number;
+    showDayItem?: boolean;
+    dayItemContainerStyle?: StyleProp<ViewStyle>;
+}
+declare const DayItem: React.FC<PropsWithChildren<DayItemProps>>;
+export default DayItem;

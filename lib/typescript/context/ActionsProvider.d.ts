@@ -1,0 +1,7 @@
+import React from 'react';
+import type { PropsWithChildren } from 'react';
+import type { ActionsProviderProps, CalendarKitHandle } from '../types';
+declare const ActionsProvider: React.FC<PropsWithChildren<ActionsProviderProps>>;
+export default ActionsProvider;
+export declare const useActions: () => ActionsProviderProps;
+export declare const useMethods: () => CalendarKitHandle;

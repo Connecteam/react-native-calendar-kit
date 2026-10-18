@@ -1,0 +1,13 @@
+/// <reference types="react" />
+import type { ViewStyle } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+interface ExpandButtonProps {
+    isExpanded: SharedValue<boolean>;
+    isShowExpandButton: SharedValue<boolean>;
+    containerStyle?: ViewStyle;
+    renderExpandIcon?: (props: {
+        isExpanded: SharedValue<boolean>;
+    }) => JSX.Element | null;
+}
+declare const ExpandButton: ({ isExpanded, isShowExpandButton, containerStyle, renderExpandIcon, }: ExpandButtonProps) => import("react/jsx-runtime").JSX.Element;
+export default ExpandButton;

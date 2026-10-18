@@ -1,0 +1,2 @@
+declare const DragDot: () => import("react/jsx-runtime").JSX.Element;
+export default DragDot;

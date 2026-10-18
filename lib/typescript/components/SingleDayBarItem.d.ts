@@ -1,0 +1,16 @@
+import React from 'react';
+import type { SharedValue } from 'react-native-reanimated';
+import type { PackedAllDayEvent, SizeAnimation } from '../types';
+interface SingleDayBarItemProps {
+    startUnix: number;
+    renderExpandIcon?: (props: {
+        isExpanded: SharedValue<boolean>;
+    }) => React.ReactElement | null;
+    renderEvent?: (event: PackedAllDayEvent, size: SizeAnimation) => React.ReactNode;
+    pageIndex: number;
+    renderDayItem?: (date: {
+        dateUnix: number;
+    }) => React.ReactNode;
+}
+declare const SingleDayBarItem: ({ startUnix, renderExpandIcon, renderEvent, pageIndex, renderDayItem, }: SingleDayBarItemProps) => import("react/jsx-runtime").JSX.Element;
+export default SingleDayBarItem;

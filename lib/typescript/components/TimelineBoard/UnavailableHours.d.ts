@@ -1,0 +1,18 @@
+import React, { FC } from 'react';
+import { ResourceItem } from '../../types';
+interface UnavailableHoursProps {
+    visibleDates: Record<string, {
+        diffDays: number;
+        unix: number;
+    }>;
+    resources?: ResourceItem[];
+}
+declare const UnavailableHours: FC<UnavailableHoursProps>;
+export default UnavailableHours;
+interface UnavailableHoursByDateProps {
+    currentUnix: number;
+    visibleDateIndex: number;
+    resources?: ResourceItem[];
+    widthPercentage?: number;
+}
+export declare const UnavailableHoursByDate: React.MemoExoticComponent<({ currentUnix, visibleDateIndex, resources, widthPercentage, }: UnavailableHoursByDateProps) => import("react/jsx-runtime").JSX.Element | null>;
