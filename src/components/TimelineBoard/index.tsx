@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { GestureResponderEvent } from 'react-native';
-import { StyleSheet, View } from 'react-native';
+import { I18nManager, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { EXTRA_HEIGHT, MILLISECONDS_IN_DAY } from '../../constants';
 import { useActions } from '../../context/ActionsProvider';
@@ -108,8 +108,16 @@ const TimelineBoard = ({
     return rows;
   }, [totalSlots, colors.border, renderCustomHorizontalLine]);
 
+  // The grid page is visually mirrored (scaleX:-1) in RTL, but locationX is measured in the
+  // un-mirrored local space (0 = physical-left). So the physical column the finger is over is
+  // the mirror of the raw column within the page's `columns`.
+  const getColumnIndex = (event: GestureResponderEvent) => {
+    const rawColumnIndex = Math.floor(event.nativeEvent.locationX / columnWidth);
+    return I18nManager.isRTL ? columns - 1 - rawColumnIndex : rawColumnIndex;
+  };
+
   const onPress = (event: GestureResponderEvent) => {
-    const columnIndex = Math.floor(event.nativeEvent.locationX / columnWidth);
+    const columnIndex = getColumnIndex(event);
     const dayIndex = pageIndex + columnIndex;
     const dayUnix = calendarData.visibleDatesArray[dayIndex];
     const minutes = event.nativeEvent.locationY / minuteHeight.value + start;
@@ -131,7 +139,7 @@ const TimelineBoard = ({
   };
 
   const onLongPress = (event: GestureResponderEvent) => {
-    const columnIndex = Math.floor(event.nativeEvent.locationX / columnWidth);
+    const columnIndex = getColumnIndex(event);
     const dayIndex = pageIndex + columnIndex;
     const dayUnix = calendarData.visibleDatesArray[dayIndex];
     const minutes = event.nativeEvent.locationY / minuteHeight.value + start;

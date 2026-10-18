@@ -9,6 +9,9 @@ import React, {
 } from 'react';
 import {
   GestureResponderEvent,
+  I18nManager,
+  StyleSheet,
+  View,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -270,7 +273,19 @@ export const CalendarList = React.forwardRef<
       }, 0);
     }, [onLoad]);
 
-    return (
+    const content = (
+      <HorizontalVirtualizedList
+        count={count}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        itemSize={itemSize}
+        visibleRange={visibleRange}
+        totalSize={totalSize}
+        getItemPosition={getItemPosition}
+      />
+    );
+
+    const list = (
       <AnimatedScrollView
         ref={(node: any) => {
           scrollViewRef.current = node;
@@ -297,18 +312,46 @@ export const CalendarList = React.forwardRef<
         onTouchStart={onTouchStart}
         snapToOffsets={snapToOffsets}
         {...{ onWheel }}>
-        <HorizontalVirtualizedList
-          count={count}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          itemSize={itemSize}
-          visibleRange={visibleRange}
-          totalSize={totalSize}
-          getItemPosition={getItemPosition}
-        />
+        {isRTLMirrored ? (
+          <View style={[{ width: totalSize, height: '100%' }, styles.mirrored]}>
+            {content}
+          </View>
+        ) : (
+          content
+        )}
       </AnimatedScrollView>
+    );
+
+    if (!isRTLMirrored) {
+      return list;
+    }
+
+    return (
+      <View
+        // Android only: draw the mirrored list into its own GPU layer, so the flip is applied to
+        // the finished layer rather than to every text draw inside it. Drawn through the two
+        // flips directly, the calendar's text kept missing Skia's text-blob cache on older
+        // Android (seen on Android 13), whose cache lookup is linear: after a few pulls to
+        // refresh, RenderThread spent seconds per frame in GrTextBlobRedrawCoordinator and the
+        // whole app stopped taking touches (ANR).
+        renderToHardwareTextureAndroid
+        style={styles.mirrored}>
+        {list}
+      </View>
     );
   }
 );
+
+/**
+ * Connecteam: calendar-kit's own `isRTL` is hardcoded false, so RTL is done by mirroring. The
+ * scroll view and its content are each flipped horizontally: the content reads in its normal
+ * orientation, while the list scrolls and lays out its pages right to left. Applies to both the
+ * day bar and the grid, which are both CalendarLists.
+ */
+const isRTLMirrored = I18nManager.isRTL;
+
+const styles = StyleSheet.create({
+  mirrored: { transform: [{ scaleX: -1 }] },
+});
 
 CalendarList.displayName = 'CalendarList';
