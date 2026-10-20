@@ -2,7 +2,7 @@
 
 Fork of [`@howljs/calendar-kit`](https://github.com/howljs/react-native-calendar-kit) **2.5.6**. The mobile app (mobiapp) uses it for the user and admin shift calendars. Before this fork, the app carried a 2,300-line `patch-package` patch on top of 2.2.2.
 
-This branch holds only the package (`packages/react-native-calendar-kit` of the upstream monorepo, split out with upstream's history). mobiapp installs it from git:
+The `connecteam-main` branch holds only the package (`packages/react-native-calendar-kit` of the upstream monorepo, split out with upstream's history). `main` is upstream's monorepo, left as GitHub forked it. mobiapp installs `connecteam-main` from git:
 
 ```json
 "@howljs/calendar-kit": "git+https://github.com/Connecteam/react-native-calendar-kit.git#<commit>"
