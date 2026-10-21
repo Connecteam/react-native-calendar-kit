@@ -176,12 +176,14 @@ export const CalendarList = React.forwardRef<
     // Android re-sends all of a scroll view's props with every update, `contentOffset` included, so
     // it has to say where the list is whenever another prop (e.g. `scrollEnabled` while pinching)
     // changes. Left at the initial offset, it scrolled the list back to the first page shown.
+    // `scrollOffset` is the JS copy of the offset: reading `internalOffset.value` here blocks the JS
+    // thread on the UI thread, which deadlocked mid-pinch on Android (ANR).
     const lastInitialOffset = useRef(initialOffset);
     const contentOffset = useMemo(() => {
       const x =
         initialOffset !== lastInitialOffset.current
           ? (initialOffset ?? 0)
-          : internalOffset.value;
+          : scrollOffset;
       lastInitialOffset.current = initialOffset;
       return { x, y: 0 };
       // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the other scroll view props change

@@ -21,8 +21,8 @@ import EventItem from './EventItem';
  */
 function useSettledMinuteHeight(): number {
   const { minuteHeight } = useBody();
-  const { isPinching } = useCalendar();
-  const [settled, setSettled] = useState(() => minuteHeight.value);
+  const { isPinching, settledMinuteHeight } = useCalendar();
+  const [settled, setSettled] = useState(() => settledMinuteHeight.current);
 
   useAnimatedReaction(
     () => ({ height: minuteHeight.value, pinching: isPinching.value }),

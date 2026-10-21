@@ -61,6 +61,8 @@ export interface CalendarContextProps {
     allowDragToEdit: boolean;
     dragToCreateMode: 'duration' | 'date-time';
     isPinching: SharedValue<boolean>;
+    /** JS copy of `minuteHeight` once a pinch has settled; see CalendarContainer. */
+    settledMinuteHeight: React.MutableRefObject<number>;
     allowHorizontalSwipe: boolean;
     enableResourceScroll: boolean;
     resourcePerPage: number;

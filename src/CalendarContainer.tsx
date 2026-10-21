@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import React, {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -10,8 +11,10 @@ import React, {
 import { PixelRatio } from 'react-native';
 import type Animated from 'react-native-reanimated';
 import {
+  runOnJS,
   runOnUI,
   scrollTo,
+  useAnimatedReaction,
   useAnimatedRef,
   useDerivedValue,
   useSharedValue,
@@ -312,6 +315,23 @@ const CalendarContainer: React.ForwardRefRenderFunction<
   );
   const timelineHeight = useDerivedValue(
     () => totalSlots * timeIntervalHeight.value + 1 + extraHeight
+  );
+
+  // Connecteam: JS copy of the minute height once a pinch has settled, which pages start from when
+  // they mount (see Events' useSettledMinuteHeight). Reading `minuteHeight.value` on the JS thread
+  // instead blocks it on the UI thread, which deadlocked on Android when a page mounted mid-pinch.
+  const settledMinuteHeight = useRef(initialTimeIntervalHeight / timeInterval);
+  const setSettledMinuteHeight = useCallback((height: number) => {
+    settledMinuteHeight.current = height;
+  }, []);
+  useAnimatedReaction(
+    () => ({ height: minuteHeight.value, pinching: isPinching.value }),
+    (current) => {
+      if (!current.pinching) {
+        runOnJS(setSettledMinuteHeight)(current.height);
+      }
+    },
+    []
   );
   const startOffset = useDerivedValue(() => start * minuteHeight.value);
 
@@ -797,6 +817,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToEdit,
       dragToCreateMode,
       isPinching,
+      settledMinuteHeight,
       allowHorizontalSwipe,
       enableResourceScroll: isResourceMode && enableResourceScroll,
       resourcePerPage,
@@ -851,6 +872,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToEdit,
       dragToCreateMode,
       isPinching,
+      settledMinuteHeight,
       allowHorizontalSwipe,
       enableResourceScroll,
       isResourceMode,
