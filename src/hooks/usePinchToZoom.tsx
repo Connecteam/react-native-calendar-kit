@@ -9,6 +9,7 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { useCalendar } from '../context/CalendarProvider';
+import { toNativeOffsetX } from '../utils/rtlOffset';
 import { clampValues } from '../utils/utils';
 import { Platform } from 'react-native';
 
@@ -30,6 +31,7 @@ const usePinchToZoom = () => {
     isPinching,
     gridListRef,
     offsetX,
+    maxOffsetX,
   } = useCalendar();
 
   const pinchGestureRef = useRef<GestureType | undefined>(undefined);
@@ -53,7 +55,12 @@ const usePinchToZoom = () => {
   // leaves it between days with a stale date label. Putting it back where it was undoes that.
   const restoreHorizontalOffset = () => {
     'worklet';
-    scrollTo(gridListRef, pinchOffsetX.value, 0, false);
+    scrollTo(
+      gridListRef,
+      toNativeOffsetX(pinchOffsetX.value, maxOffsetX.value),
+      0,
+      false
+    );
   };
 
   /**

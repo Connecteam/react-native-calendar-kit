@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { I18nManager } from 'react-native';
 import { View } from './View';
 
@@ -10,6 +10,8 @@ interface HorizontalVirtualizedListProps {
   visibleRange: { start: number; end: number };
   totalSize: number;
   getItemPosition: (index: number) => number;
+  /** Lays the items out right to left; see CalendarList. */
+  reversed?: boolean;
 }
 
 export const HorizontalVirtualizedList = React.memo(
@@ -21,16 +23,26 @@ export const HorizontalVirtualizedList = React.memo(
     visibleRange,
     totalSize,
     getItemPosition,
+    reversed = false,
   }: HorizontalVirtualizedListProps) => {
+    const getPosition = useCallback(
+      (index: number) => getItemPosition(reversed ? count - 1 - index : index),
+      [getItemPosition, reversed, count]
+    );
+    // Leftmost rendered item: the last one when reversed.
+    const firstVisiblePosition = reversed
+      ? getPosition(visibleRange.end)
+      : visibleRange.start > 0
+        ? getPosition(visibleRange.start)
+        : 0;
+
     const renderItems = useMemo(() => {
       const items: React.ReactNode[] = [];
-
-      const firstVisiblePosition = getItemPosition(visibleRange.start);
 
       for (let i = visibleRange.start; i <= visibleRange.end; i++) {
         if (i < count) {
           const key = keyExtractor(i, i);
-          const absolutePosition = getItemPosition(i);
+          const absolutePosition = getPosition(i);
           const relativePosition = Math.round(
             absolutePosition - firstVisiblePosition
           );
@@ -43,6 +55,7 @@ export const HorizontalVirtualizedList = React.memo(
                 left: relativePosition,
                 width: itemSize,
                 height: '100%',
+                direction: reversed ? 'rtl' : undefined,
               }}>
               {renderItem({ item: i, index: i })}
             </View>
@@ -56,13 +69,12 @@ export const HorizontalVirtualizedList = React.memo(
       visibleRange.end,
       count,
       keyExtractor,
-      getItemPosition,
+      getPosition,
+      firstVisiblePosition,
       renderItem,
       itemSize,
+      reversed,
     ]);
-
-    const firstVisiblePosition =
-      visibleRange.start > 0 ? getItemPosition(visibleRange.start) : 0;
 
     return (
       <View
@@ -70,14 +82,15 @@ export const HorizontalVirtualizedList = React.memo(
           position: 'relative',
           width: totalSize,
           height: '100%',
-          // Connecteam: in RTL, React Native lays the items' `left` out from the right edge, but
-          // doesn't mirror transforms, so the shift has to run the other way to keep the items
-          // where their positions say.
+          // Connecteam: in a mirrored RTL list, React Native lays the items' `left` out from the
+          // right edge, but doesn't mirror transforms, so the shift has to run the other way to
+          // keep the items where their positions say. A reversed list is laid out left to right.
           transform: [
             {
-              translateX: I18nManager.isRTL
-                ? -firstVisiblePosition
-                : firstVisiblePosition,
+              translateX:
+                I18nManager.isRTL && !reversed
+                  ? -firstVisiblePosition
+                  : firstVisiblePosition,
             },
           ],
         }}>

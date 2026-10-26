@@ -13,6 +13,8 @@ interface HorizontalVirtualizedListProps {
     };
     totalSize: number;
     getItemPosition: (index: number) => number;
+    /** Lays the items out right to left; see CalendarList. */
+    reversed?: boolean;
 }
-export declare const HorizontalVirtualizedList: React.MemoExoticComponent<({ count, renderItem, keyExtractor, itemSize, visibleRange, totalSize, getItemPosition, }: HorizontalVirtualizedListProps) => import("react/jsx-runtime").JSX.Element>;
+export declare const HorizontalVirtualizedList: React.MemoExoticComponent<({ count, renderItem, keyExtractor, itemSize, visibleRange, totalSize, getItemPosition, reversed, }: HorizontalVirtualizedListProps) => import("react/jsx-runtime").JSX.Element>;
 export {};

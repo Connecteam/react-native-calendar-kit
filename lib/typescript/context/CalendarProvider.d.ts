@@ -61,6 +61,8 @@ export interface CalendarContextProps {
     allowDragToEdit: boolean;
     dragToCreateMode: 'duration' | 'date-time';
     isPinching: SharedValue<boolean>;
+    /** Connecteam: see utils/rtlOffset. */
+    maxOffsetX: SharedValue<number>;
     allowHorizontalSwipe: boolean;
     enableResourceScroll: boolean;
     resourcePerPage: number;

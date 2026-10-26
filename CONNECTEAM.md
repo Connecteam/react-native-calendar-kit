@@ -21,7 +21,7 @@ The `connecteam-main` branch holds only the package (`packages/react-native-cale
   - `RefreshControl` comes from gesture-handler.
   - There is no `activateAfterLongPress` on Android.
 - **`DraggableEvent`** is laid out from `selectedEvent` and hidden through React state, so selecting and releasing don't blink.
-- **RTL** (CT-44015): `CalendarList` mirrors the day bar and the grid, using a GPU layer on Android. Taps and horizontal drags map back to the right day.
+- **RTL** (CT-44015): `CalendarList` shows the day bar and the grid right to left. iOS mirrors them; Android lays the pages out in reverse and converts the scroll offset (`utils/rtlOffset`), so nothing is drawn flipped. Taps and horizontal drags map back to the right day.
 - **`onLongPressEvent`** also receives the gesture event (CT-63196).
 - **Pinch to zoom** keeps the row under the fingers in place. `isPinching` is on the calendar context. On Android the scroll views run alongside the pinch and stop scrolling while it's active.
 - **`CalendarList`'s `contentOffset`** follows the list's position, since Android re-applies it on every prop update.

@@ -66,6 +66,7 @@ import {
   findNearestNumber,
   prepareCalendarRange,
 } from './utils/utils';
+import { IS_REVERSED_RTL, toNativeOffsetX } from './utils/rtlOffset';
 
 const CalendarContainer: React.ForwardRefRenderFunction<
   CalendarKitHandle,
@@ -298,7 +299,18 @@ const CalendarContainer: React.ForwardRefRenderFunction<
   const offsetX = useSharedValue(
     isResourceMode && enableResourceScroll ? 0 : initialOffset
   );
-  const linkedScrollGroup = useLinkedScrollGroup(offsetX);
+  // Connecteam: the day bar's and the grid's largest offset when they're reversed (Android RTL),
+  // else -1; scrolling them to a list position goes through toNativeOffsetX (utils/rtlOffset).
+  // Resource lists aren't reversed.
+  const maxOffsetXValue =
+    IS_REVERSED_RTL && !(isResourceMode && enableResourceScroll)
+      ? (calendarData.count - 1) * calendarGridWidth
+      : -1;
+  const maxOffsetX = useSharedValue(maxOffsetXValue);
+  useEffect(() => {
+    maxOffsetX.value = maxOffsetXValue;
+  }, [maxOffsetX, maxOffsetXValue]);
+  const linkedScrollGroup = useLinkedScrollGroup(offsetX, maxOffsetX);
   const scrollVisibleHeightAnim = useSharedValue(0);
   const timeIntervalHeight = useSharedValue(initialTimeIntervalHeight);
   const isPinching = useSharedValue(false);
@@ -355,8 +367,9 @@ const CalendarContainer: React.ForwardRefRenderFunction<
             props?.animatedDate !== undefined ? props.animatedDate : true;
 
           runOnUI(() => {
-            scrollTo(dayBarListRef, offset, 0, animatedDate);
-            scrollTo(gridListRef, offset, 0, animatedDate);
+            const nativeOffset = toNativeOffsetX(offset, maxOffsetX.value);
+            scrollTo(dayBarListRef, nativeOffset, 0, animatedDate);
+            scrollTo(gridListRef, nativeOffset, 0, animatedDate);
           })();
         }
       }
@@ -436,8 +449,9 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       linkedScrollGroup.setActiveId(ScrollType.calendarGrid);
 
       runOnUI(() => {
-        scrollTo(dayBarListRef, nextOffset, 0, animated);
-        scrollTo(gridListRef, nextOffset, 0, animated);
+        const nativeOffset = toNativeOffsetX(nextOffset, maxOffsetX.value);
+        scrollTo(dayBarListRef, nativeOffset, 0, animated);
+        scrollTo(gridListRef, nativeOffset, 0, animated);
       })();
     }
   );
@@ -488,8 +502,9 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       triggerDateChanged.current = nextDateUnix;
       linkedScrollGroup.setActiveId(ScrollType.calendarGrid);
       runOnUI(() => {
-        scrollTo(dayBarListRef, nextOffset, 0, animated);
-        scrollTo(gridListRef, nextOffset, 0, animated);
+        const nativeOffset = toNativeOffsetX(nextOffset, maxOffsetX.value);
+        scrollTo(dayBarListRef, nativeOffset, 0, animated);
+        scrollTo(gridListRef, nativeOffset, 0, animated);
       })();
     }
   );
@@ -797,6 +812,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToEdit,
       dragToCreateMode,
       isPinching,
+      maxOffsetX,
       allowHorizontalSwipe,
       enableResourceScroll: isResourceMode && enableResourceScroll,
       resourcePerPage,
@@ -851,6 +867,7 @@ const CalendarContainer: React.ForwardRefRenderFunction<
       allowDragToEdit,
       dragToCreateMode,
       isPinching,
+      maxOffsetX,
       allowHorizontalSwipe,
       enableResourceScroll,
       isResourceMode,

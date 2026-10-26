@@ -16,6 +16,7 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
+import { toNativeOffsetX } from '../../utils/rtlOffset';
 import type {
   EventHandlerInternal,
   LinkedScrollController,
@@ -26,7 +27,9 @@ import type {
 const scrollNativeEventNames = ['onScroll'];
 
 export const useLinkedScrollGroup = (
-  providedOffset?: SharedValue<number>
+  providedOffset?: SharedValue<number>,
+  /** Connecteam: the lists' largest offset when they're reversed, else -1 (utils/rtlOffset). */
+  maxOffsetX?: SharedValue<number>
 ): LinkedScrollGroup => {
   const allControllers = useRef<LinkedScrollController[]>([]);
   const scrollListeners = useRef<
@@ -45,10 +48,15 @@ export const useLinkedScrollGroup = (
   const eventHandler = useEvent<NativeSyntheticEvent<NativeScrollEvent>>(
     (event: ReanimatedEvent<NativeSyntheticEvent<NativeScrollEvent>>) => {
       'worklet';
+      const reversedMaxOffsetX = maxOffsetX?.value ?? -1;
+      // `offset` holds the list position, so a reversed list's offset is converted. Peers are
+      // reversed the same way, so they still take the raw offset.
       offset.value =
-        event.contentOffset.x === 0
-          ? event.contentOffset.y
-          : event.contentOffset.x;
+        reversedMaxOffsetX >= 0
+          ? toNativeOffsetX(event.contentOffset.x, reversedMaxOffsetX)
+          : event.contentOffset.x === 0
+            ? event.contentOffset.y
+            : event.contentOffset.x;
 
       peers.value.forEach((peer) => {
         scrollTo(peer, event.contentOffset.x, event.contentOffset.y, false);

@@ -108,9 +108,9 @@ const TimelineBoard = ({
     return rows;
   }, [totalSlots, colors.border, renderCustomHorizontalLine]);
 
-  // The grid page is visually mirrored (scaleX:-1) in RTL, but locationX is measured in the
-  // un-mirrored local space (0 = physical-left). So the physical column the finger is over is
-  // the mirror of the raw column within the page's `columns`.
+  // In RTL a page shows its first day on the right (see CalendarList), but locationX counts from
+  // the physical left. So the column the finger is over is the mirror of the raw column within
+  // the page's `columns`.
   const getColumnIndex = (event: GestureResponderEvent) => {
     const rawColumnIndex = Math.floor(event.nativeEvent.locationX / columnWidth);
     return I18nManager.isRTL ? columns - 1 - rawColumnIndex : rawColumnIndex;

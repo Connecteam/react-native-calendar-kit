@@ -11,7 +11,6 @@ import React, {
 import {
   GestureResponderEvent,
   I18nManager,
-  Platform,
   StyleSheet,
   View,
   type LayoutChangeEvent,
@@ -30,6 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { HorizontalVirtualizedList } from './HorizontalVirtualizedList';
 import useLatestCallback from '../../hooks/useLatestCallback';
+import { IS_REVERSED_RTL, toNativeOffsetX } from '../../utils/rtlOffset';
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -148,6 +148,8 @@ export const CalendarList = React.forwardRef<
     const isLoaded = useRef(false);
 
     const totalSize = count * itemSize;
+    // See utils/rtlOffset: the scroll view's offset for a list position on Android in RTL.
+    const maxOffsetX = IS_REVERSED_RTL ? totalSize - itemSize : -1;
 
     const visibleRange = useMemo(() => {
       if (count === 0) {
@@ -170,7 +172,9 @@ export const CalendarList = React.forwardRef<
     );
 
     const animScrollRef = useAnimatedRef<Animated.ScrollView>();
-    const internalOffset = useSharedValue(initialOffset ?? 0);
+    const internalOffset = useSharedValue(
+      toNativeOffsetX(initialOffset ?? 0, maxOffsetX)
+    );
     const scrollOffsetAnim = useScrollViewOffset(animScrollRef, internalOffset);
 
     // Android re-sends all of a scroll view's props with every update, `contentOffset` included, so
@@ -180,7 +184,7 @@ export const CalendarList = React.forwardRef<
     const contentOffset = useMemo(() => {
       const x =
         initialOffset !== lastInitialOffset.current
-          ? (initialOffset ?? 0)
+          ? toNativeOffsetX(initialOffset ?? 0, maxOffsetX)
           : internalOffset.value;
       lastInitialOffset.current = initialOffset;
       return { x, y: 0 };
@@ -192,7 +196,19 @@ export const CalendarList = React.forwardRef<
       snapToInterval,
       snapToOffsets,
       totalSize,
+      maxOffsetX,
     ]);
+
+    const nativeSnapToOffsets = useMemo(
+      () =>
+        maxOffsetX < 0 || !snapToOffsets
+          ? snapToOffsets
+          : snapToOffsets
+              .map((offset) => maxOffsetX - offset)
+              .filter((offset) => offset >= 0)
+              .reverse(),
+      [snapToOffsets, maxOffsetX]
+    );
 
     const extraScrollDataRef = useRef(extraScrollData);
     extraScrollDataRef.current = extraScrollData;
@@ -220,10 +236,12 @@ export const CalendarList = React.forwardRef<
 
     useAnimatedReaction(
       () => scrollOffsetAnim.value,
-      (offset) => {
+      (nativeOffset) => {
+        const offset = toNativeOffsetX(nativeOffset, maxOffsetX);
         runOnJS(handleColumnChanged)(offset);
         runOnJS(setScrollOffset)(offset);
-      }
+      },
+      [maxOffsetX]
     );
 
     useImperativeHandle(
@@ -233,14 +251,14 @@ export const CalendarList = React.forwardRef<
           if (index >= 0 && index < count) {
             const position = getItemPosition(index);
             scrollViewRef.current?.scrollTo({
-              x: position,
+              x: toNativeOffsetX(position, maxOffsetX),
               animated,
             });
           }
         },
         scrollToOffset: (offset: number, animated: boolean = true) => {
           scrollViewRef.current?.scrollTo({
-            x: offset,
+            x: toNativeOffsetX(offset, maxOffsetX),
             animated,
           });
         },
@@ -268,6 +286,7 @@ export const CalendarList = React.forwardRef<
         count,
         getItemPosition,
         itemSize,
+        maxOffsetX,
         scrollOffset,
         totalSize,
       ]
@@ -281,15 +300,16 @@ export const CalendarList = React.forwardRef<
           offset = getItemPosition(targetIndex);
         }
         if (offset !== undefined) {
+          const nativeOffset = toNativeOffsetX(offset, maxOffsetX);
           setTimeout(() => {
             scrollViewRef.current?.scrollTo({
-              x: offset,
+              x: nativeOffset,
               animated: false,
             });
           }, 0);
         }
       }
-    }, [initialScrollIndex, count, getItemPosition, initialOffset]);
+    }, [initialScrollIndex, count, getItemPosition, initialOffset, maxOffsetX]);
 
     useEffect(() => {
       setTimeout(() => {
@@ -309,6 +329,7 @@ export const CalendarList = React.forwardRef<
         visibleRange={visibleRange}
         totalSize={totalSize}
         getItemPosition={getItemPosition}
+        reversed={IS_REVERSED_RTL}
       />
     );
 
@@ -320,7 +341,7 @@ export const CalendarList = React.forwardRef<
           animatedRef?.(node);
         }}
         horizontal={true}
-        style={isAndroidRTL ? [style, styles.ltr] : style}
+        style={IS_REVERSED_RTL ? [style, styles.ltr] : style}
         contentContainerStyle={[contentContainerStyle, { width: totalSize }]}
         onScroll={onScroll}
         onScrollBeginDrag={onScrollBeginDrag}
@@ -338,15 +359,11 @@ export const CalendarList = React.forwardRef<
         disableIntervalMomentum={!!snapToOffsets || !!snapToInterval}
         snapToInterval={snapToInterval}
         onTouchStart={onTouchStart}
-        snapToOffsets={snapToOffsets}
+        snapToOffsets={nativeSnapToOffsets}
         {...{ onWheel }}>
         {isRTLMirrored ? (
           <View
-            style={[
-              { width: totalSize, height: '100%' },
-              styles.mirrored,
-              isAndroidRTL && styles.rtl,
-            ]}>
+            style={[{ width: totalSize, height: '100%' }, styles.mirrored]}>
             {content}
           </View>
         ) : (
@@ -359,40 +376,30 @@ export const CalendarList = React.forwardRef<
       return list;
     }
 
-    return (
-      <View
-        // Android only: draw the mirrored list into its own GPU layer, so the flip is applied to
-        // the finished layer rather than to every text draw inside it. Drawn through the two
-        // flips directly, the calendar's text kept missing Skia's text-blob cache on older
-        // Android (seen on Android 13), whose cache lookup is linear: after a few pulls to
-        // refresh, RenderThread spent seconds per frame in GrTextBlobRedrawCoordinator and the
-        // whole app stopped taking touches (ANR).
-        renderToHardwareTextureAndroid
-        style={styles.mirrored}>
-        {list}
-      </View>
-    );
+    return <View style={styles.mirrored}>{list}</View>;
   }
 );
 
 /**
- * Connecteam: calendar-kit's own `isRTL` is hardcoded false, so RTL is done by mirroring. The
- * scroll view and its content are each flipped horizontally: the content reads in its normal
- * orientation, while the list scrolls and lays out its pages right to left. Applies to both the
- * day bar and the grid, which are both CalendarLists.
+ * Connecteam: calendar-kit's own `isRTL` is hardcoded false, so RTL is done here. Applies to both
+ * the day bar and the grid, which are both CalendarLists.
  *
- * On Android the scroll view itself is laid out LTR, and only its content RTL. Android's native
- * horizontal scroll view handles RTL on its own by snapping to the far end once its content is laid
- * out, which threw away the initial offset and showed an empty stretch of the list. iOS lays out an
- * RTL scroll view differently, and the mirroring above already accounts for it there.
+ * iOS mirrors: the scroll view and its content are each flipped horizontally, so the content reads
+ * in its normal orientation while the list scrolls and lays out its pages right to left.
+ *
+ * Android lays the pages out right to left inside a left-to-right scroll view instead, with each
+ * page laid out RTL, and converts the scroll view's offset (utils/rtlOffset). Nothing is drawn
+ * flipped: text drawn through the flips missed Skia's text-blob cache on older Android (seen on
+ * Android 13), whose lookup is linear, and the GPU layer that hid that was redrawn in full on every
+ * pinch frame. Either way RenderThread fell seconds behind and the app ended in an ANR. The scroll
+ * view can't be RTL itself either: Android's horizontal scroll view snaps to the far end once its
+ * content is laid out in RTL, which threw away the initial offset.
  */
-const isRTLMirrored = I18nManager.isRTL;
-const isAndroidRTL = isRTLMirrored && Platform.OS === 'android';
+const isRTLMirrored = I18nManager.isRTL && !IS_REVERSED_RTL;
 
 const styles = StyleSheet.create({
   mirrored: { transform: [{ scaleX: -1 }] },
   ltr: { direction: 'ltr' },
-  rtl: { direction: 'rtl' },
 });
 
 CalendarList.displayName = 'CalendarList';

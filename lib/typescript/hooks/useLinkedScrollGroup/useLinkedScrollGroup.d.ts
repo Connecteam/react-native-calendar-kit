@@ -1,4 +1,4 @@
 import { type SharedValue } from 'react-native-reanimated';
 import type { LinkedScrollGroup } from './types';
-export declare const useLinkedScrollGroup: (providedOffset?: SharedValue<number>) => LinkedScrollGroup;
+export declare const useLinkedScrollGroup: (providedOffset?: SharedValue<number>, maxOffsetX?: SharedValue<number>) => LinkedScrollGroup;
 export default useLinkedScrollGroup;

@@ -36,6 +36,7 @@ import type {
   SelectedEventType,
 } from '../types';
 import { forceUpdateZone, parseDateTime } from '../utils/dateUtils';
+import { toNativeOffsetX } from '../utils/rtlOffset';
 import { useActions } from './ActionsProvider';
 import { useCalendar } from './CalendarProvider';
 import { useTimezone } from './TimeZoneProvider';
@@ -156,6 +157,7 @@ const DragEventProvider: FC<
   const {
     offsetY,
     offsetX,
+    maxOffsetX,
     scrollVisibleHeightAnim,
     gridListRef,
     hourWidth,
@@ -542,8 +544,9 @@ const DragEventProvider: FC<
 
       runOnUI(() => {
         scrollTargetX.value = nextOffset;
-        scrollTo(dayBarListRef, nextOffset, 0, true);
-        scrollTo(gridListRef, nextOffset, 0, true);
+        const nativeOffset = toNativeOffsetX(nextOffset, maxOffsetX.value);
+        scrollTo(dayBarListRef, nativeOffset, 0, true);
+        scrollTo(gridListRef, nativeOffset, 0, true);
         dragStartUnix.value = targetUnix;
         roundedDragStartUnix.value = targetUnix;
         offsetX.value = nextOffset;
@@ -604,8 +607,9 @@ const DragEventProvider: FC<
       linkedScrollGroup.setActiveId(ScrollType.calendarGrid);
       runOnUI(() => {
         scrollTargetX.value = nextOffset;
-        scrollTo(dayBarListRef, nextOffset, 0, true);
-        scrollTo(gridListRef, nextOffset, 0, true);
+        const nativeOffset = toNativeOffsetX(nextOffset, maxOffsetX.value);
+        scrollTo(dayBarListRef, nativeOffset, 0, true);
+        scrollTo(gridListRef, nativeOffset, 0, true);
         offsetX.value = nextOffset;
       })();
     };
