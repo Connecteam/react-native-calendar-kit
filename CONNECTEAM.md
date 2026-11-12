@@ -28,6 +28,7 @@ The `connecteam-main` branch holds only the package (`packages/react-native-cale
 - **`renderEvent`** gets a third argument, `EventStaticSize`, the event's settled plain size. `SizeAnimation` values follow it once a pinch settles.
 - **`onEventsRendered` / `onEventsUnmounted`** report the days each page shows. `EventsProvider` packs the whole span of the `events` prop.
 - The per-event day walk uses native `Date` instead of luxon.
+- **`MultiDayBarItem`** spreads `StyleSheet.absoluteFill`, since React Native 0.85 removed `absoluteFillObject`.
 
 Each change is its own commit on top of `chore: release 2.5.6`, and each commit says why.
 

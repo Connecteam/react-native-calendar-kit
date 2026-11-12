@@ -331,7 +331,7 @@ const EventItem = ({
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center' },
   eventContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
     borderRadius: 2,
     paddingHorizontal: 2,
